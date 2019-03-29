@@ -1,17 +1,19 @@
 from __future__ import print_function
 
-from cloudmesh.shell.command import PluginCommand
-from cloudmesh.shell.command import command
-from cloudmesh.shell.variables import Variables
-from cloudmesh.common.console import Console
-from pprint import pprint, pformat
-from cloudmesh.common.parameter import Parameter
-from cloudmesh.management.configuration.config import Active
-from cloudmesh.compute.vm.Provider import Provider
-from cloudmesh.mongo.CmDatabase import CmDatabase
 from cloudmesh.common.Printer import Printer
-from cloudmesh.common.util import banner
+from cloudmesh.common.console import Console
+from cloudmesh.common.parameter import Parameter
+from cloudmesh.compute.vm.Provider import Provider
+from cloudmesh.management.configuration.config import Active
+from cloudmesh.mongo.CmDatabase import CmDatabase
+from cloudmesh.shell.command import PluginCommand
+from cloudmesh.shell.command import command, map_parameters
+from cloudmesh.shell.variables import Variables
 from cloudmesh.terminal.Terminal import VERBOSE
+from cloudmesh.management.configuration.arguments import Arguments
+from cloudmesh.common.Shell import Shell
+
+
 class VmCommand(PluginCommand):
 
     # see also https://github.com/cloudmesh/client/edit/master/cloudmesh_client/shell/plugins/VmCommand.py
@@ -180,58 +182,6 @@ class VmCommand(PluginCommand):
                 Azure: rename is not supported
         """
 
-        def map_parameters(arguments, *args):
-            for arg in args:
-                flag = "--" + arg
-                if flag in arguments:
-                    arguments[arg] = arguments[flag]
-                else:
-                    arguments[arg] = None
-
-        def get_cloud_and_names(label, arguments):
-            names = []
-            clouds = []
-            if arguments["--cloud"]:
-                clouds = get_clouds(arguments, variables)
-            else:
-                clouds = get_clouds(arguments, variables)
-
-            names = get_names(arguments, variables)
-
-            return clouds, names
-
-        def get_clouds(arguments, variables):
-
-            clouds = arguments["cloud"] or arguments["--cloud"] or variables[
-                "cloud"]
-            if "active" == clouds:
-                active = Active()
-                clouds = active.clouds()
-            else:
-                clouds = Parameter.expand(clouds)
-
-            if clouds is None:
-                Console.error("you need to specify a cloud")
-                return None
-
-            return clouds
-
-        def get_names(arguments, variables):
-            names = arguments["NAME"] or arguments["NAMES"] or arguments[
-                "--name"] or variables["vm"]
-            if names is None:
-                Console.error("you need to specify a vm")
-                return None
-            else:
-                return Parameter.expand(names)
-
-        def name_loop(names, label, f):
-            names = get_names(arguments, variables)
-            for name in names:
-                Console.msg("{label} {name}".format(label=label, name=name))
-                # r = f(name)
-
-
         map_parameters(arguments,
                        'active',
                        'cloud',
@@ -262,18 +212,27 @@ class VmCommand(PluginCommand):
 
             names = []
 
-            clouds, names = get_cloud_and_names("refresh", arguments)
+            clouds, names = Arguments.get_cloud_and_names("refresh", arguments, variables)
 
             return ""
 
         elif arguments.ping:
 
+            # TODO: IMPLEMENT
             names = []
             pings = int(arguments.N or 3)
 
             names = []
 
-            clouds, names = get_cloud_and_names("ping", arguments)
+            clouds, names = Arguments.get_cloud_and_names("ping", arguments, variables)
+
+            for name in names:
+
+                ping = Shell.live(
+                    "ping -c {N} {name}".format(name=name, N=arguments.N))
+                print(ping)
+            else:
+                return True
 
             return ""
 
@@ -281,7 +240,7 @@ class VmCommand(PluginCommand):
 
             names = []
 
-            clouds, names = get_cloud_and_names("check", arguments)
+            clouds, names = Arguments.get_cloud_and_names("check", arguments, variables)
 
             return ""
 
@@ -289,7 +248,7 @@ class VmCommand(PluginCommand):
 
             names = []
 
-            clouds, names = get_cloud_and_names("status", arguments)
+            clouds, names = Arguments.get_cloud_and_names("status", arguments, variables)
 
             return ""
 
@@ -297,7 +256,7 @@ class VmCommand(PluginCommand):
 
             names = []
 
-            clouds, names = get_cloud_and_names("start", arguments)
+            clouds, names = Arguments.get_cloud_and_names("start", arguments, variables)
 
             return ""
 
@@ -305,7 +264,7 @@ class VmCommand(PluginCommand):
 
             names = []
 
-            clouds, names = get_cloud_and_names("stop", arguments)
+            clouds, names = Arguments.get_cloud_and_names("stop", arguments, variables)
 
             return ""
 
@@ -313,13 +272,13 @@ class VmCommand(PluginCommand):
 
             names = []
 
-            clouds, names = get_cloud_and_names("terminate", arguments)
+            clouds, names = Arguments.get_cloud_and_names("terminate", arguments, variables)
 
             return ""
 
         elif arguments.delete:
 
-            clouds, names = get_cloud_and_names("delete", arguments)
+            clouds, names = Arguments.get_cloud_and_names("delete", arguments, variables)
 
             return ""
 
@@ -335,10 +294,10 @@ class VmCommand(PluginCommand):
 
             # if no clouds find the clouds of all specified vms by name
             # find all vms of the clouds,
-            # print only thos vms specified by name, if no name is given print all for the cloud
+            # print only those vms specified by name, if no name is given print all for the cloud
             # print("list the vms")
 
-            clouds, names = get_cloud_and_names("list", arguments)
+            clouds, names = Arguments.get_cloud_and_names("list", arguments, variables)
 
             # print("Clouds:", clouds)
 
@@ -350,13 +309,13 @@ class VmCommand(PluginCommand):
                     if arguments["--refresh"]:
                         pass
                         # find all clouds in db
-                        # itterate over the clouds
+                        # iterate over the clouds
                         # for each name in name queue, find it and add it to the cloud vm list
                         # for each cloud print the vms
                     else:
                         pass
                         # find all clouds in db
-                        # itterate over all clouds
+                        # iterate over all clouds
                         # find the vm with the name
                         # add it to the cloud list
                         # for each cloud print the vms
@@ -394,18 +353,15 @@ class VmCommand(PluginCommand):
                         header = p.p.output['vm']['header']  # not pretty
 
                         print(Printer.flatwrite(vms,
-                                                sort_keys=("name"),
+                                                sort_keys=["name"],
                                                 order=order,
                                                 header=header,
                                                 output=arguments.format)
                               )
 
-
                 except Exception as e:
 
                     VERBOSE.print(e, verbose=9)
-
-
 
             return ""
 
@@ -416,15 +372,12 @@ class VmCommand(PluginCommand):
             """
             print("info for the vm")
 
-
-            cloud, names = get_cloud_and_names("info", arguments)
-
-
+            cloud, names = Arguments.get_cloud_and_names("info", arguments, variables)
 
         elif arguments.rename:
 
             print("rename the vm")
-            
+
             try:
                 oldnames = Parameter.expand(arguments["OLDNAMES"])
                 newnames = Parameter.expand(arguments["NEWNAMES"])
@@ -528,14 +481,12 @@ class VmCommand(PluginCommand):
         elif arguments.console:
             # vm console [NAME] [--force]
 
-            names = get_names(arguments, variables)
+            names = Arguments.get_names(arguments, variables)
 
             for name in names:
                 # r = vm.console(name,force=argument.force)
                 Console.msg("{label} {name}".format(label="console", name=name))
             return
-
-
 
         elif arguments.wait:
             """

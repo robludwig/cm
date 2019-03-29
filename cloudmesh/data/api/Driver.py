@@ -1,4 +1,3 @@
-#! /usr/bin/env python
 ########################################################################
 #
 #    Copyright 2018 cloudmesh.org
@@ -17,12 +16,14 @@
 #    License: Apache 2.0
 #
 ########################################################################
-from libcloud.compute.types import Provider
-from libcloud.compute.providers import get_driver
-import oyaml as yaml
 import os
+
+from libcloud.compute.providers import get_driver
+from libcloud.compute.types import Provider
+
 from cloudmesh.management.configuration.config import Config
 from cloudmesh.shell.variables import Variables
+
 
 class Driver(object):
 
@@ -30,11 +31,13 @@ class Driver(object):
         name = os.path.expanduser(name)
         self.config = Config(name=name)
 
+    # noinspection PyPep8Naming
     def get(self, name=None):
         connection = None
 
         if name is None:
             variables = Variables()
+            # noinspection PyUnusedLocal
             cloudname = variables['cloud']
 
         kind = self.config.get(
@@ -45,20 +48,22 @@ class Driver(object):
         # BUG FROM HERE ON WRONG
 
         if kind == 'azure':
-            AZURE_SUBSCRIPTION_ID = credentials['AZURE_SUBSCRIPTION_ID']
-            AZURE_MANAGEMENT_CERT_PATH = credentials[
-                'AZURE_MANAGEMENT_CERT_PATH']
             AZDriver = get_driver(Provider.AZURE)
-            connection = AZDriver(subscription_id=AZURE_SUBSCRIPTION_ID,
-                                  key_file=AZURE_MANAGEMENT_CERT_PATH)
+            connection = AZDriver(
+                subscription_id=credentials['AZURE_SUBSCRIPTION_ID'],
+                key_file=credentials['AZURE_MANAGEMENT_CERT_PATH'])
         elif kind == 'aws':
-            EC2_ACCESS_ID = credentials['EC2_ACCESS_ID']
-            EC2_SECRET_KEY = credentials['EC2_SECRET_KEY']
             EC2Driver = get_driver(Provider.EC2)
-            connection = EC2Driver(EC2_ACCESS_ID, EC2_SECRET_KEY)
+            connection = EC2Driver(
+                credentials['EC2_ACCESS_ID'],
+                credentials['EC2_SECRET_KEY'])
 
         return connection
 
+
+#
+# TODO: this must be done as nosetest. we do not use main here
+#
 
 if __name__ == '__main__':
     cm = Driver()

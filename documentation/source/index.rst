@@ -11,6 +11,7 @@ Cloudmesh Version 4
    install
    quickstart
    configuration
+   yaml
    mongo
    manual
    manual-dev
@@ -18,6 +19,14 @@ Cloudmesh Version 4
    vm
    workflow
    code
+
+.. toctree::
+   :numbered:
+   :maxdepth: 2
+   :caption: Conventions:
+
+   conventions
+   nosetests
 
 Cloudmesh Outdated
 ===============================

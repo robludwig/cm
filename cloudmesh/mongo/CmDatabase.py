@@ -5,6 +5,7 @@ from pymongo import MongoClient
 
 from cloudmesh.management.configuration.config import Config
 from cloudmesh.common.console import Console
+from cloudmesh.common.parameter import Parameter
 
 from pprint import pprint
 
@@ -20,7 +21,16 @@ from pprint import pprint
 class CmDatabase(object):
     __shared_state = {}
 
+    # ok
     def __init__(self, host=None, username=None, password=None, port=None):
+        """
+        create a cloudmesh database in the specified mongodb
+
+        :param host: the host
+        :param username: the username
+        :param password: the password
+        :param port: the port
+        """
 
         self.__dict__ = self.__shared_state
         if "cnfig" not in self.__dict__:
@@ -45,6 +55,7 @@ class CmDatabase(object):
 
             self.connect()
 
+    # ok
     def connect(self):
         """
         connect to the database
@@ -53,43 +64,128 @@ class CmDatabase(object):
             f"mongodb://{self.username}:{self.password}@{self.host}:{self.port}")
         self.db = self.client[self.database]
 
+    # ok
     def collection(self, name):
+        """
+        returns the named collection
+        :param name: the collection name
+        :return: teh collection
+        """
         return self.db[name]
 
+    # ok
     def close_client(self):
         """
         close the connection to the database
         """
         self.client.close()
 
-    def find(self, collection="cloudmesh", **kwrags):
-        col = self.db[collection]
+    # ok
+    def collections(self):
+        """
+        the names of all collections
+        :return: list of names of all collections
+        """
+        return self.db.collection_names()
 
-        entries = col.find(kwrags, {"_id": 0})
+    # ok
+    def name_count(self, name):
+        """
+        counts the occurence of the name used in the collections
+
+        :param name: the name
+        :return:
+        """
+        count = 0
+        collections = self.collections()
+        for collection in collections:
+            entry = self.find({"collection": collection, "cm.name": entry})
+            count = count + len(entry)
+        return count
+
+    # ok
+    def find_name(self, name):
+        """
+        This function returns the entry with the given name from all collections
+        in mongodb. The name must be unique accross all collections
+
+        :param name: the unique name of the entry
+        :return:
+        """
+        entry = []
+        collections = self.collections()
+        for collection in collections:
+            entry = self.find({"collection":collection, "cm.name": entry})
+            if len(entry) > 0:
+                return entry
+        return entry
+
+    # ok
+    def find_names(self, names):
+        """
+        Assuming names specified as parameters, it returns the entries with
+        these anmes from all collections in mongodb. The names must be unique
+        across all collections.
+
+        :param names: the unique names in parameter format
+        :return:
+        """
+        result = []
+        entries = Parameter.expand(names)
+        if len(entries) > 0:
+            for entry in entries:
+                r = self.find_name({"cm.name": entry})
+                if r is not None:
+                    result.append(r[0])
+        return result
+
+    # check
+    def find(self, query):
+        col = self.db[query["collection"]]
+
+        entries = col.find(query, {"_id": 0})
 
         records = []
         for entry in entries:
             records.append(entry)
         return records
 
+    # check
+    def find(self, collection="cloudmesh", **kwargs):
+        col = self.db[collection]
+
+        entries = col.find(kwargs, {"_id": 0})
+
+        records = []
+        for entry in entries:
+            records.append(entry)
+        return records
+
+    # check
     def find_by_id(self, cmid, collection="cloudmesh"):
 
         entry = self.find(collection=collection, cmid=cmid)
 
         return entry
 
+    # check
     def find_by_counter(self, cmcounter, collection="cloudmesh"):
 
         entry = self.find(collection=collection, cmcounter=cmcounter)
 
         return entry
 
+    # check
     def update(self, entries):
 
         for entry in entries:
             entry['collection'] = "{cloud}-{kind}".format(**entry)
+            if 'cm' not in entry:
+                entry['cm'] = {}
+            entry['cm']['collection'] = entry['collection']
 
             # entry["collection"] = collection
+            # noinspection PyUnusedLocal
             try:
                 self.col = self.db[entry['collection']]
 
@@ -119,10 +215,12 @@ class CmDatabase(object):
         result = entry
         return result
 
+    # check
     def insert(self, d, collection="cloudmesh"):
         col = self.db[collection]
         col.insert_one(d)
 
+    # remove
     def update_old(self,
                    entries,
                    collection="cloudmesh",
@@ -130,8 +228,8 @@ class CmDatabase(object):
                    **kwargs):
         """
 
-        :param entries: an arrey of dicts where one entry is called cmid.
-                        One must be carefulas it does not erase previous attributes.
+        :param entries: an array of dicts where one entry is called cmid.
+                        One must be careful as it does not erase previous attributes.
         :param collection:
         :param replace:
         :return:
@@ -158,10 +256,12 @@ class CmDatabase(object):
                 col.update_one({'name': entry[name]}, {"$set": entry},
                                upsert=True)
 
+    # check
     def delete(self, collection="cloudmesh", **kwargs, ):
         col = self.db[collection]
         col.delete_one(**kwargs)
 
+    # check
     def command(self, command):
         """
         issue command string via the mongoDB console
@@ -177,6 +277,7 @@ class CmDatabase(object):
 
         return res
 
+    # ok
     def status(self):
         """
         test mongodb correspondent db connection
@@ -184,9 +285,10 @@ class CmDatabase(object):
         """
         return self.command("serverStatus")
 
+    # ok
     def clear(self, collection="cloudmesh"):
         """
-        remove all entries from mongo
+        drops the collection
         :return:
         """
 

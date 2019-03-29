@@ -3,90 +3,149 @@ import subprocess
 import os
 import ntpath
 import time
+from pathlib import Path
+from pprint import pprint
 from cloudmesh.management.configuration.config import Config
 from cloudmesh.management.configuration.generic_config import GenericConfig
 from cloudmesh.common.util import path_expand
+from cloudmesh.mongo.DataBaseDecorator import DatabaseUpdate
+from cloudmesh.mongo.CmDatabase import CmDatabase
 
 # noinspection PyPep8
 class SlurmCluster(object):
 
-    def __init__(self, debug):
+    def __init__(self):
         """
         Initializes the SlurmCluster class
 
-        :param debug: switch the debug information on and off
         """
-        current_path = os.path.dirname(os.path.realpath(__file__))
-        self.workspace = os.path.join(current_path, "batch_workspace/slurm_batch.yaml")
-        if not os.path.exists(os.path.dirname(self.workspace)):
-            os.makedirs(os.path.dirname(self.workspace))
+        # current_path = os.path.dirname(os.path.realpath(__file__))
+        # self.workspace = os.path.join(current_path, "batch_workspace/slurm_batch.yaml")
+        # if not os.path.exists(os.path.dirname(self.workspace)):
+        #     os.makedirs(os.path.dirname(self.workspace))
         self.cm_config = Config()
-        self.batch_config = GenericConfig(self.workspace)
-        self.debug = debug
+        # self.batch_config = GenericConfig(self.workspace)
         self.all_jobIDs = []
         self.slurm_cluster = {}
-        self.job_metadata = {}
+        self.job = {
+            'job_name' : None,
+            'cluster_name': None,
+            'script_path': None,
+            'executable_path': None,
+            'destination': None,
+            'source': None,
+            'experiment_name': None,
+            'companion_file': None,
+        }
+        # self.database = CmDatabase()
 
+    @staticmethod
+    def job_specification():
+
+        # self.job_validator()
+
+        data = {
+            "cm": {
+                "cloud": "karst_debug",
+                "kind": "batch-job",
+                "name": "job012",
+            },
+            "batch": {
+                "source": "~/.cloudmesh/batch/dir",
+                "destination": "~/.cloudmesh/dir/",
+                "status": "running"
+            }
+        }
+
+        return data
+
+
+
+    # noinspection PyDictCreation
+    @DatabaseUpdate()
     def create(self,
                job_name,
-               slurm_cluster_name,
-               slurm_script_path,
-               input_type,
-               job_script_path,
-               argfile_path,
-               remote_path,
-               local_path,
-               suffix,
+               cluster_name,
+               script_path,
+               executable_path,
+               destination,
+               source,
+               experiment_name,
+               companion_file,
                overwrite=False):
 
         """
         This method is used to create a job for running on remote slurm cluster
 
         :param job_name: name of the job to create
-        :param slurm_cluster_name: slurm cluster on which the job is gonna run
-        :param slurm_script_path: path of the slurm script
-        :param input_type: type of the input for the script that is going to be run on remote cluster, possible values: params, params+file
-        :param job_script_path: path of the file that is going to be run on the cluster via slurm script
-        :param argfile_path: path of the file that has to be passed to the file as an argument if any
-        :param remote_path: path in the remotes on which the scripts is gonna be copied to and ran from
-        :param local_path: local path to which the results are gonna be copied
-        :param suffix: suffix of the filenames in the job
-        :param overwrite: if the job already exists, this flag overwrites the previous job with the same name
+        :param cluster_name: slurm cluster on which the job is gonna run
+        :param script_path: path of the slurm script
+        :param executable_path: path of the executable that is going to be
+        run on the cluster via slurm script
+        :param destination: path in the remotes on which the scripts is
+        gonna be copied to and ran from
+        :param source: local path to which the results are gonna be copied
+        :param experiment_name: experiment name and suffix of the filenames in
+        the job
+        :param companion_file: path of the file that has to be passed to the
+        file as an argument if any
+        :param overwrite: if the job already exists, this flag overwrites
+        the previous job with the same name
         :return:
         """
-        if self.batch_config.get('job-metadata') is not None and job_name in \
-                list(self.batch_config.get('job-metadata').keys()) and overwrite is False:
-            raise RuntimeError("The job {} exists in the configuration file, if you want to overwrite the job, \
-            use --overwrite argument.".format(job_name))
+        # if self.batch_config.get('job-metadata') is not None and job_name in \
+        #         list(self.batch_config.get('job-metadata').keys()) and overwrite is False:
+        #     raise RuntimeError("The job {} exists in the configuration file, if you want to overwrite the job, \
+        #     use --overwrite argument.".format(job_name))
 
-        slurm_cluster = self.cm_config.get('cloudmesh').get('cluster')[slurm_cluster_name]
-        tmp_cluster = {slurm_cluster_name: dict(slurm_cluster)}
-        self.batch_config.deep_set(['slurm_cluster'], tmp_cluster)
-
-        job = {
-            'suffix': suffix,
-            'slurm_cluster_name': slurm_cluster_name,
-            'input_type': input_type,
-            'raw_remote_path': remote_path,
-            'slurm_script_path': os.path.abspath(slurm_script_path),
-            'job_script_path': os.path.abspath(job_script_path),
-            'argfile_path': os.path.abspath(argfile_path),
-            'argfile_name': ntpath.basename(argfile_path),
-            'script_name': ntpath.basename(job_script_path),
-            'slurm_script_name': ntpath.basename(slurm_script_path),
-            'remote_path': os.path.join(remote_path, 'job' + suffix)}
-
-        job['remote_script_path'] = os.path.join(job['remote_path'], job['script_name'])
-        job['remote_slurm_script_path'] = os.path.join(job['remote_path'], job['slurm_script_name'])
-        job['local_path'] = local_path
-
-        job_metadata = {job_name: job}
+        # tmp_cluster = {cluster_name: dict(slurm_cluster)}
+        # slurm_cluster = self.cm_config.get('cloudmesh').get('cluster')[cluster_name]
+        # self.batch_config.deep_set(['slurm_cluster'], tmp_cluster)
 
 
-        self.job_metadata = job
+        # self.job = {
+        #     "cm": {
+        #         "cloud": cluster_name,
+        #         "kind": "batch-job",
+        #         "name": job_name,
+        #         "cluster": self.cm_config.get('cloudmesh').get('cluster')[cluster_name]
+        #     },
+        #     "batch": {
+        #         "status": "pending",
+        #         'script_path': script_path.as_posix(),
+        #         'executable_path': executable_path.as_posix(),
+        #         'destination': destination.as_posix(),
+        #         'source': source.as_posix(),
+        #         'experiment_name': experiment_name,
+        #         'companion_file': companion_file.as_posix()
+        #     }
+        # }
 
+        self.job = {
+                "cloud": cluster_name,
+                "kind": "batch-job",
+                "name": job_name,
+                "cluster": self.cm_config.get('cloudmesh').get('cluster')[
+                    cluster_name],
+                "status": "pending",
+                'script_path': script_path.as_posix(),
+                'executable_path': executable_path.as_posix(),
+                'destination': destination.as_posix(),
+                'source': source.as_posix(),
+                'experiment_name': experiment_name,
+                'companion_file': companion_file.as_posix()
+        }
 
-        self.batch_config.deep_set(['job-metadata'], job_metadata)
+        # job['destination'] = os.path.join(job['remote_path'], job['script_name'])
+        # job['remote_slurm_script_path'] = os.path.join(job['remote_path'], job['slurm_script_name'])
+
+        # job_metadata = {job_name: job}
+
+        # self.batch_config.deep_set(['job-metadata'], job_metadata)
+
+        # data = self.job_specification()
+        return self.job
+
 
     @staticmethod
     def _execute_in_parallel(func_args):
@@ -257,16 +316,16 @@ class SlurmCluster(object):
         """
         if target == 'slurm-cluster':
             self.batch_config.remove(['slurm_cluster'], key)
-            print("Slurm-cluster {} removeed successfully.".format(key))
+            print("Slurm-cluster {} removed successfully.".format(key))
         elif target == 'job':
             self.batch_config.remove(['job-metadata'], key)
-            print("Job {} removeed successfully.".format(key))
+            print("Job {} removed successfully.".format(key))
         else:
-            raise ValueError("Target of removeing not found.")
+            raise ValueError("Target to remove not found.")
 
     def fetch(self, job_name):
         """
-        This method is used to fetch resutls from remote nodes
+        This method is used to fetch results from remote nodes
 
         :param job_name: the previously submitted job name
         :return:
@@ -286,6 +345,8 @@ class SlurmCluster(object):
             print("waiting for other results if any...")
         print("All of the remote results collected.")
 
+    '''
+    @DatabaseUpdate
     def list(self, target, max_depth, current_depth=1, input_dict=None):
         """
         listing the target slurm clusters or job-metadata
@@ -320,6 +381,10 @@ class SlurmCluster(object):
             else:
                 indent = current_depth if current_depth > 1 else current_depth - 1
                 print('\t' * indent, input_dict)
+
+        data = [{}, {}]
+        return data
+    '''
 
     def run(self, job_name):
         """
@@ -375,14 +440,45 @@ class SlurmCluster(object):
         else:
             raise ValueError("Target of variable set not found.")
 
-# def main():
-#    """
-#    Main function for the batch. Processes the input arguments.
 
-#    """
-#    arguments = docopt(__doc__, version='Cloudmesh Batch 0.1')
-#    process_arguments(arguments)
+    def job_validator(self):
+        """
+        Used to validate the job-related parameters. If not all of them are
+        met, then the user will be informed about the missing parameter.
+
+        :return: Boolean
+        """
+        # job = {
+        #     'suffix': suffix,
+        #     'slurm_cluster_name': slurm_cluster_name,
+        #     'input_type': input_type,
+        #     'raw_remote_path': remote_path,
+        #     'slurm_script_path': os.path.abspath(slurm_script_path),
+        #     'job_script_path': os.path.abspath(job_script_path),
+        #     'argfile_path': os.path.abspath(argfile_path),
+        #     'argfile_name': ntpath.basename(argfile_path),
+        #     'script_name': ntpath.basename(job_script_path),
+        #     'remote_path': os.path.join(remote_path, 'job' + suffix),
+        #     'local_path': local_path
+        # }
+
+        mandatory_params = ['slurm_cluster_name', 'input_type',
+                          'slurm_jobfile_path','binary_path','datafile_path',
+                          "remote_path",'local_path']
+        missing_param = None
+        if self.job['slurm_cluster_name'] is None:
+            missing_param = 'slurm_cluster_name'
+            print ("Slurm cluster name not defiend. ")
 
 
-# if __name__ == "__main__":
-#    main()
+        if missing_param is not None:
+            print("Set {} using the following command:".format(missing_param))
+            print("\t cms batch {} set {} {}".format(self.job['jobname'],
+                                                     missing_param,
+                                                          missing_param.upper()))
+            return
+
+        # assert input_type in ['params', 'params+file'], "Input type can be either params or params+file"
+        # if input_type == 'params+file':
+        #     assert arguments.get("--argfile-path") is not None, "Input type is params+file but the input \
+        #         filename is not specified"

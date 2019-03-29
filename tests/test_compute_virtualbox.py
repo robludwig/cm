@@ -3,21 +3,19 @@
 # nosetests -v --nocapture tests/test_compute_virtualbox.py
 #################################################################
 
-from pprint import pprint
-import time
 import subprocess
-import sys
+import time
+from pathlib import Path
+from pprint import pprint
+
+from cloudmesh.common.Printer import Printer
 from cloudmesh.common.util import HEADING
+from cloudmesh.common.util import banner
+from cloudmesh.common.util import path_expand
 from cloudmesh.compute.virtualbox.Provider import Provider
 from cloudmesh.management.configuration.config import Config
-from cloudmesh.common.Printer import Printer
-from cloudmesh.common.FlatDict import FlatDict, flatten
-from cloudmesh.management.configuration.SSHkey import SSHkey
 from cloudmesh.management.configuration.name import Name
-from cloudmesh.mongo.CmDatabase import CmDatabase
-from cloudmesh.common.util import banner
-from pathlib import Path
-from cloudmesh.common.util import path_expand
+
 
 class TestName:
 
@@ -25,6 +23,7 @@ class TestName:
     vbox_version = '6.0.4'
     image_name = "generic/ubuntu1810"
     size=1024
+    cloud = "vagrant"
 
     def print_images(self):
         images = self.p.images()
@@ -52,7 +51,7 @@ class TestName:
         self.name = str(self.name_generator)
         self.name_generator.incr()
         self.new_name = str(self.name_generator)
-        self.p = Provider(name="vbox")
+        self.p = Provider(name=self.cloud)
 
 
     def test_01_version(self):
@@ -191,20 +190,24 @@ class other:
                   )
 
     def test_06_secgroups_add(self):
+        HEADING()
         self.p.add_secgroup(self.secgroupname)
         self.test_05_list_secgroups()
 
     def test_07_secgroup_rules_add(self):
+        HEADING()
         rules = [self.secgrouprule]
         self.p.add_rules_to_secgroup(self.secgroupname, rules)
         self.test_05_list_secgroups()
 
     def test_08_secgroup_rules_remove(self):
+        HEADING()
         rules = [self.secgrouprule]
         self.p.remove_rules_from_secgroup(self.secgroupname, rules)
         self.test_05_list_secgroups()
 
     def test_09_secgroups_remove(self):
+        HEADING()
         self.p.remove_secgroup(self.secgroupname)
         self.test_05_list_secgroups()
 
@@ -225,6 +228,7 @@ class other:
         self.test_04_list_vm()
 
     def test_12_publicIP_detach(self):
+        HEADING()
         print("detaching and removing public IP...")
         time.sleep(5)
         nodes = self.p.list(raw=True)
@@ -263,9 +267,11 @@ class other:
         assert node["extra"]["task_state"] == "deleting"
 
     def test_15_list_vm(self):
+        HEADING()
         self.test_04_list_vm()
 
     def test_16_vm_login(self):
+        HEADING()
         self.test_04_list_vm()
         self.test_10_create()
         # use the self.testnode for this test

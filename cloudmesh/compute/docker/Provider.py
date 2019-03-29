@@ -1,32 +1,23 @@
-from cloudmesh.abstractclass.ComputeNodeABC import ComputeNodeABC
-from pprint import pprint
-from cloudmesh.common.Shell import Shell
-from cloudmesh.common.dotdict import dotdict
-from datetime import datetime
-import io
-import time
+import os
+import shlex
 import subprocess
 import sys
-import shlex
-import platform
-import docker
-import os
 import textwrap
-import webbrowser
 from pprint import pprint
+
+import docker
+from docker.version import version as pydocker_version
+
+from cloudmesh.abstractclass.ComputeNodeABC import ComputeNodeABC
 from cloudmesh.common.Shell import Shell
+from cloudmesh.common.console import Console
 from cloudmesh.common.dotdict import dotdict
 # from cloudmesh.abstractclass import ComputeNodeManagerABC
 from cloudmesh.management.configuration.config import Config
-from cloudmesh.common.console import Console
-from cloudmesh.mongo import MongoDBController
-from datetime import datetime
 from cloudmesh.common.util import path_expand
 
-from docker.version import version as pydocker_version
-
 """
-is vagrant up todate
+is vagrant up to date
 
 ==> vagrant: A new version of Vagrant is available: 2.2.4 (installed version: 2.2.2)!
 ==> vagrant: To upgrade visit: https://www.vagrantup.com/downloads.html
@@ -48,31 +39,57 @@ class Provider(ComputeNodeABC):
         return rc
 
     def update_dict(self, entry, kind="node"):
-        entry["kind"] = kind
-        entry["driver"] = self.cloudtype
-        entry["cloud"] = self.cloud
+        if "cm" not in entry:
+            entry["cm"] = {}
+        entry["cm"]["kind"] = kind
+        entry["cm"]["driver"] = self.cloudtype
+        entry["cm"]["cloud"] = self.cloud
         return entry
 
     output = {
-        'vm': {
-            "sort_keys": ("name"),
-            'order': ["vagrant.name",
-                      "vagrant.cloud",
-                      "vbox.name",
-                      "vagrant.id",
-                      "vagrant.provider",
-                      "vagrant.state",
-                      "vagrant.hostname"],
-            'header': ["Name",
-                       "Cloud",
-                       "Vbox",
-                       "Id",
-                       "Provider",
-                       "State",
-                       "Hostname"]
+
+        "vm": {
+            "sort_keys": ["cm.name"],
+            "order": ["cm.name",
+                      "cm.cloud",
+                      "state",
+                      "image",
+                      "public_ips",
+                      "private_ips",
+                      "cm.kind"],
+            "header": ["name",
+                       "cloud",
+                       "state",
+                       "image",
+                       "public_ips",
+                       "private_ips",
+                       "kind"]
         },
-        'image': None,
-        'flavor': None
+        "image": {"sort_keys": ["Os"],
+                  "order": ["RepoTags"
+                            "repo",
+                            "tags"
+                            "Os",
+                            "Size",
+                            "Architecture"],
+                  "header": ["RepoTags",
+                             "repo",
+                             "tags"
+                             "Os",
+                             "Size",
+                             "Architecture"]},
+        "flavor": {"sort_keys": ["name",
+                                 "vcpus",
+                                 "disk"],
+                   "order": ["name",
+                             "vcpus",
+                             "ram",
+                             "disk"],
+                   "header": ["Name",
+                              "VCPUS",
+                              "RAM",
+                              "Disk"]}
+
     }
 
     def __init__(self, name=None,
@@ -106,25 +123,37 @@ class Provider(ComputeNodeABC):
 
 
         """
-        docker_version, build = Shell.execute("docker --version",
-                                              shell=True).split(",")
-        docker_build = build.split("build ")[1]
-        docker_version = docker_version.split("version ")[1]
-        versions = {
-            "pydocker": pydocker_version,
-            "docker": docker_version,
-            "build": docker_build
-        }
+
+        def get_version(command):
+            data = dotdict()
+            version, build = Shell.execute("docker --version",
+                                           shell=True).split(",")
+            build = build.split("build ")[1]
+            version = version.split("version ")[1]
+            data.version = version
+            data.command = command
+            data.build = build
+            return data
+
+        versions = dotdict({
+            "pydocker": dotdict({"version": pydocker_version}),
+            "docker": get_version("docker"),
+            "machine": get_version("docker-machine"),
+            "compose": get_version("docker-compose")
+        })
+
         return versions
 
     def images(self):
         client = docker.from_env()
-        all = client.images.list()
+        images = client.images.list()
         result = []
-        for image in all:
-            image = dict(image.__dict__)
-            del image["collection"]
-            del image["client"]
+        for image in images:
+            image = dict(image.__dict__)['attrs']
+            # image["repo"],image["tags"] = image["RepoTags"][0].split(":")
+            image["repo"] = None
+            image["tags"] = None
+
             result.append(image)
         return result
 
@@ -136,7 +165,7 @@ class Provider(ComputeNodeABC):
             # read name form config
         else:
             try:
-                command = "vagrant box remove {name}".format(name=name)
+                command = f"vagrant box remove {name}"
                 result = Shell.execute(command, shell=True)
             except Exception as e:
                 print(e)
@@ -145,8 +174,7 @@ class Provider(ComputeNodeABC):
 
     def add_image(self, name=None):
 
-        command = "vagrant box add {name} --provider virtualbox".format(
-            name=name)
+        command = f"vagrant box add {name} --provider virtualbox"
 
         result = ""
         if name is None:
@@ -155,8 +183,7 @@ class Provider(ComputeNodeABC):
             # read name form config
         else:
             try:
-                command = "vagrant box add {name} --provider virtualbox".format(
-                    name=name)
+                command = f"vagrant box add {name} --provider virtualbox"
                 result = Shell.live(command)
                 assert result.status == 0
             except Exception as e:
@@ -174,14 +201,17 @@ class Provider(ComputeNodeABC):
         """
         return "A new version of Vagrant is available" not in r
 
-    def start(self, name):
+    def start(self, name, version, directory):
         """
         start a node
 
+        :param version:
+        :param directory:
         :param name: the unique node name
         :return:  The dict representing the node
         """
-        pass
+        command = f"docker run -v {directory}:/share -w /share --rm -it {name}:{version}  /bin/bash"
+        os.system(command)
 
     def create(self, **kwargs):
 
@@ -245,7 +275,7 @@ class Provider(ComputeNodeABC):
 
     def dockerfile(self,
                    name=None,
-                   dir="~/.cloudmesh/docker/",
+                   directroy="~/.cloudmesh/docker/",
                    os="ubuntu",
                    version="18.04",
                    **kwargs):
@@ -257,8 +287,7 @@ class Provider(ComputeNodeABC):
         arg = (self.local())
         arg.update(kwargs)
 
-        script = {}
-        script["ubuntu"] = textwrap.dedent("""
+        script = {"ubuntu": textwrap.dedent("""
             #
             # cloudmesh dockerfile
             #
@@ -283,11 +312,14 @@ class Provider(ComputeNodeABC):
             
             EXPOSE 80 443
             
-           """.format(**arg))
+           """.format(**arg))}
 
         return script
 
-    def _get_specification(self, cloud=None, name=None, port=None,
+    def _get_specification(self,
+                           cloud=None,
+                           name=None,
+                           port=None,
                            image=None, **kwargs):
         arg = dotdict(kwargs)
         arg.port = port
@@ -317,7 +349,7 @@ class Provider(ComputeNodeABC):
             pass
 
         arg.path = default["path"]
-        arg.directory = os.path.expanduser("{path}/{name}".format(**arg))
+        arg.directory = path_expand("{path}/{name}".format(**arg))
         arg.vagrantfile = "{directory}/Dockerfile".format(**arg)
         return arg
 

@@ -59,10 +59,14 @@ PyYAML
 requests
 termcolor
 urllib3
-six
 Flask-PyMongo
+flask
+six
+recommonmark
 dateparser
 humanize
+psutil
+connexion[swagger-ui]
 yamllint
 """.split("\n")
 
@@ -90,7 +94,7 @@ setup(
     name="cloudmesh_cm4",
     description="cloudmesh_cm4 - A heterogeneous multi cloud command "
                 "client and shell",
-    long_description=read('README.md'),
+    long_description=read('README-1.md'),
     license="Apache License, Version 2.0",
     author="Gregor von Laszewski, cloudmesh.org",
     author_email="laszewski@gmail.com",

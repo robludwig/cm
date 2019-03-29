@@ -1,9 +1,8 @@
 from __future__ import print_function
-from cloudmesh.shell.command import command
-from cloudmesh.shell.command import PluginCommand
+
 from cloudmesh.common.console import Console
-from cloudmesh.common.util import path_expand
-from pprint import pprint
+from cloudmesh.shell.command import PluginCommand
+from cloudmesh.shell.command import command
 
 
 class UrlCommand(PluginCommand):
@@ -33,7 +32,7 @@ class UrlCommand(PluginCommand):
 
              url http://localhost:8080 --format=json
 
-               downlodas the content of the specified url and displays it in
+               downloads the content of the specified url and displays it in
                a pretty json format
 
         """

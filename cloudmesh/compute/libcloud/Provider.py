@@ -14,6 +14,7 @@ from cloudmesh.common.util import path_expand
 from cloudmesh.common.console import Console
 from cloudmesh.terminal.Terminal import VERBOSE
 
+
 class Provider(ComputeNodeABC):
     # ips
     # secgroups
@@ -22,10 +23,24 @@ class Provider(ComputeNodeABC):
     ProviderMapper = {
         "openstack": LibcloudProvider.OPENSTACK,
         "aws": LibcloudProvider.EC2,
-        "azure_asm": LibcloudProvider.AZURE,
-        "azure_arm": LibcloudProvider.AZURE_ARM
+        "google": LibcloudProvider.GCE
+        #"azure_asm": LibcloudProvider.AZURE,
+        #"azure_arm": LibcloudProvider.AZURE_ARM
     }
 
+    """
+    this may be buggy as the fields could be differentbased on the provider
+    TODO: fix output base on provider
+    so we may need to do 
+    
+    output = {"aws": {"vm": ....,,
+                      "image": ....,,
+                      "flavor": ....,,
+              "google": {"vm": ....,,
+                      "image": ....,,
+                      "flavor": ....,,
+    """
+    
     output = {
 
         "vm": {
@@ -74,7 +89,7 @@ class Provider(ComputeNodeABC):
         Initializes the provider. The default parameters are read from the configutation
         file that is defined in yaml format.
         :param name: The name of the provider as defined in the yaml file
-        :param configuration: The location of the yaml configuration filw
+        :param configuration: The location of the yaml configuration file
         """
         conf = Config(configuration)["cloudmesh"]
         self.user = conf["profile"]
@@ -116,10 +131,17 @@ class Provider(ComputeNodeABC):
                 self.cloudman = self.driver(
                     cred["EC2_ACCESS_ID"],
                     cred["EC2_SECRET_KEY"],
-                    region=cred["region"])
+                    region=cred["EC2_REGION"])
+
+            if self.cloudtype == 'google':
+                self.cloudman = self.driver(
+                    cred["client_email"],
+                    cred["path_to_json_file"],  # should be placed in .cloudmesh
+                    project=cred["project"]
+                )
         else:
             print("Specified provider not available")
-            self.cloudman = None
+            self.cloudman = False
         self.default_image = None
         self.default_size = None
         self.public_key_path = conf["profile"]["publickey"]
@@ -164,19 +186,73 @@ class Provider(ComputeNodeABC):
 
             if "_uuid" in entry:
                 del entry["_uuid"]
+            identifier = {}
+            for key in ["name", "created", "updated", "cloud", "kind",
+                        "collection", "modified", "driver"]:
+                if key in entry:
+                    identifier[key] = entry[key]
+            entry["cm"] = identifier
+            d.append(entry)
+        return d
+
+    def dict_new(self, elements, kind=None):
+        """
+        Libcloud returns an object or list of objects With the dict method
+        this object is converted to a dict. Typically this method is used internally.
+        :param elements: the elements
+        :param kind: Kind is image, flavor, or node
+        :return:
+        """
+        if elements is None:
+            return None
+        elif type(elements) == list:
+            _elements = elements
+        else:
+            _elements = [elements]
+        d = []
+        for element in _elements:
+            entry = element.__dict__
+            entry["cm"] = {}
+            entry["cm"]["kind"] = kind
+            entry["cm"]["driver"] = self.cloudtype
+            entry["cm"]["cloud"] = self.cloud
+
+            if kind == 'node':
+                entry["cm"]["updated"] = str(datetime.utcnow())
+
+                if "created_at" in entry:
+                    entry["cm"]["created"] = str(entry["created_at"])
+                    # del entry["created_at"]
+                else:
+                    entry["cm"]["created"] = entry["modified"]
+            elif kind == 'flavor':
+                entry["cm"]["created"] = entry["cm"]["updated"] = str(
+                    datetime.utcnow())
+            elif kind == 'image':
+                if self.cloudtype == 'openstack':
+                    entry["cm"]['created'] = entry['extra']['created']
+                    entry["cm"]['updated'] = entry['extra']['updated']
+                else:
+                    pass
+
+            if "_uuid" in entry:
+                del entry["_uuid"]
 
             d.append(entry)
         return d
 
-    def find(self, elements, name=None):
+    def find(self, elements, name=None, raw=False):
         """
         finds an element in elements with the specified name
         :param elements: The elements
         :param name: The name to be found
+        :param: If raw is True, elements is a libcloud object.
+                Otherwise elements is a dict
+        :param raw: if raw is used the return from the driver is used and not a cleaned dict, not implemented
         :return:
         """
         for element in elements:
-            if element["name"] == name:
+            if (raw and element.name) or element["name"] == name:
                 return element
         return None
 
@@ -197,7 +273,7 @@ class Provider(ComputeNodeABC):
 
     def key_upload(self, key):
         """
-        uploades teh key specified in the yaml configuration to the cloud
+        uploads the key specified in the yaml configuration to the cloud
         :param key:
         :return:
         """
@@ -323,7 +399,7 @@ class Provider(ComputeNodeABC):
     def images(self, raw=False):
         """
         Lists the images on the cloud
-        :param raw: If raw is set to True the lib cloud object is returened
+        :param raw: If raw is set to True the lib cloud object is returned
                     otherwise a dict is returened.
         :return: dict or libcloud object
         """
@@ -347,7 +423,7 @@ class Provider(ComputeNodeABC):
     def flavors(self, raw=False):
         """
         Lists the flavors on the cloud
-        :param raw: If raw is set to True the lib cloud object is returened
+        :param raw: If raw is set to True the lib cloud object is returned
                     otherwise a dict is returened.
         :return: dict or libcloud object
         """
@@ -362,54 +438,90 @@ class Provider(ComputeNodeABC):
     def flavor(self, name=None):
         """
         Gest the flavor with a given name
-        :param name: The aname of the flavor
+        :param name: The name of the flavor
         :return: The dict of the flavor
         """
         return self.find(self.flavors(), name=name)
 
-    def start(self, name=None):
+    def apply(self, fname, names):
         """
-        start a node. NOT YET IMPLEMENTED.
-    
-        :param name: the unique node name
-        :return:  The dict representing the node
-        """
-        HEADING(c=".")
-        return None
+        apply a function to a given list of nodes
 
-    def stop(self, name=None):
+        :param fname: Name of the function to be applied to the given nodes
+        :param names: A list of node names
+        :return:  A list of dict representing the nodes
         """
-        stops the node with the given name. NOT YET IMPLEMENTED.
-    
-        :param name:
-        :return: The dict representing the node including updated status
+        if self.cloudman:
+            # names = Parameter.expand(names)
+            res = []
+
+            nodes = self.list(raw=True)
+            for node in nodes:
+                if node.name in names:
+                    fname(node)
+                    res.append(self.info(node.name))
+            return res
+        else:
+            return None
+
+    def start(self, names=None):
         """
-        HEADING(c=".")
-        return None
+        Start a list of nodes with the given names
+
+        :param names: A list of node names
+        :return:  A list of dict representing the nodes
+        """
+        return self.apply(self.cloudman.ex_start_node, names)
+
+    def stop(self, names=None):
+        """
+        Stop a list of nodes with the given names
+
+        :param names: A list of node names
+        :return:  A list of dict representing the nodes
+        """
+        return self.apply(self.cloudman.ex_stop_node, names)
 
     def info(self, name=None):
         """
         Gets the information of a node with a given name
-    
+
         :param name: The name of teh virtual machine
         :return: The dict representing the node including updated status
         """
         return self.find(self.list(), name=name)
 
-    def suspend(self, name=None):
+    def suspend(self, names=None):
         """
-        suspends the node with the given name. NOT YET IMPLEMENTED.
-    
+        NOT YET IMPLEMENTED.
+
+        suspends the node with the given name.
+
         :param name: the name of the node
         :return: The dict representing the node
         """
         HEADING(c=".")
+
+        names = Parameter.expand(names)
+
+        nodes = self.list(raw=True)
+        for node in nodes:
+            if node.name in names:
+                r = self.cloudman.ex_stop_node(self._get_node(node.name),
+                                               deallocate=False)
+                print (r)
+                self.cloudman.destroy_node(node)
+
+        raise NotImplementedError
+        #
+        # should return the updated names dict, e.g. status and so on
+        #
         return None
 
     def list(self, raw=False):
         """
         Lists the vms on the cloud
-        :param raw: If raw is set to True the lib cloud object is returened
+        :param raw: If raw is set to True the lib cloud object is returned
                     otherwise a dict is returened.
         :return: dict or libcloud object
         """
@@ -436,7 +548,7 @@ class Provider(ComputeNodeABC):
     def resume(self, name=None):
         """
         resume the named node. NOT YET IMPLEMENTED.
-    
+
         :param name: the name of the node
         :return: the dict of the node
         """
@@ -456,22 +568,22 @@ class Provider(ComputeNodeABC):
         for node in nodes:
             if node.name in names:
                 self.cloudman.destroy_node(node)
-        # bug status shoudl change to destroyed
+        # bug status should change to destroyed
         return None
 
-    def reboot(self, name=None):
+    def reboot(self, names=None):
         """
-        Reboot the node. NOT YET IMPLEMENTED.
-        :param name: the name of the node
-        :return: the dict of the node
+        Reboot a list of nodes with the given names
+
+        :param names: A list of node names
+        :return:  A list of dict representing the nodes
         """
-        HEADING(c=".")
-        return None
+        return self.apply(self.cloudman.reboot_node, names)
 
     def create(self, name=None, image=None, size=None, timeout=360, **kwargs):
         """
         creates a named node
-    
+
         :param name: the name of the node
         :param image: the image used
         :param size: the size of the image
@@ -484,18 +596,24 @@ class Provider(ComputeNodeABC):
         image_use = None
         flavors = self.flavors(raw=True)
         flavor_use = None
-        for _image in images:
-            if _image.name == image:
-                image_use = _image
-                break
-        for _flavor in flavors:
-            if _flavor.name == size:
-                flavor_use = _flavor
-                break
+
         # keyname = Config()["cloudmesh"]["profile"]["user"]
         # ex_keyname has to be the registered keypair name in cloud
         pprint(kwargs)
+
+        if self.cloudtype in ["openstack", "aws"]:
+
+            for _image in images:
+                if _image.name == image:
+                    image_use = _image
+                    break
+            for _flavor in flavors:
+                if _flavor.name == size:
+                    flavor_use = _flavor
+                    break
+
         if self.cloudtype == "openstack":
+
             if "ex_security_groups" in kwargs:
                 secgroupsobj = []
                 #
@@ -508,6 +626,8 @@ class Provider(ComputeNodeABC):
                 # now secgroup name is converted to object which
                 # is required by the libcloud api call
                 kwargs["ex_security_groups"] = secgroupsobj
+
+        if self.cloudtype in ["openstack", "aws"]:
             node = self.cloudman.create_node(name=name, image=image_use,
                                              size=flavor_use, **kwargs)
         else:
@@ -547,7 +667,7 @@ class Provider(ComputeNodeABC):
     def rename(self, name=None, destination=None):
         """
         rename a node. NOT YET IMPLEMENTED.
-    
+
         :param destination:
         :param name: the current name
         :return: the dict with the new name

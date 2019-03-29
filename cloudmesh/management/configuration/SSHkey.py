@@ -44,10 +44,12 @@ class SSHkey(dict):
         # work with students that do windows and find out how to do it in windows also
         pass
 
+    # noinspection PyDictCreation
     def get_from_git(self, user, keyname=None):
         """
         gets the key from github
 
+        :param keyname: the keyname
         :param user: the github username
         :return: an array of public keys
         :rtype: list
@@ -163,7 +165,7 @@ class SSHkey(dict):
         try:
 
             keytype, key_string, comment = self._parse(keystring)
-            data = base64.decodestring(key_string)
+            data = base64.decodebytes(key_string)
             int_len = 4
             str_len = struct.unpack('>I', data[:int_len])[0]
             # this should return 7
@@ -175,7 +177,8 @@ class SSHkey(dict):
             return False
 
     def _keyname_sanitation(self, username, keyname):
-        keynamenew = "%s_%s" % (
-            username, keyname.replace('.', '_').replace('@', '_'))
+        keynamenew = "{username}_{keyname}".format(
+            username=username,
+            keyname=keyname.replace('.', '_').replace('@', '_'))
         return keynamenew
 

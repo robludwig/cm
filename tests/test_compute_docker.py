@@ -2,22 +2,21 @@
 # nosetest -v --nopature
 # nosetests -v --nocapture tests/test_compute_docker.py
 #################################################################
-import docker
-from pprint import pprint
-import time
 import subprocess
-import sys
+import time
+from pathlib import Path
+from pprint import pprint
+
+import docker
+
+from cloudmesh.common.Printer import Printer
+from cloudmesh.common.Shell import Shell
 from cloudmesh.common.util import HEADING
+from cloudmesh.common.util import banner
+from cloudmesh.common.util import path_expand
 from cloudmesh.compute.docker.Provider import Provider
 from cloudmesh.management.configuration.config import Config
-from cloudmesh.common.Printer import Printer
-from cloudmesh.common.FlatDict import FlatDict, flatten
-from cloudmesh.management.configuration.SSHkey import SSHkey
 from cloudmesh.management.configuration.name import Name
-from cloudmesh.mongo.CmDatabase import CmDatabase
-from cloudmesh.common.util import banner
-from pathlib import Path
-from cloudmesh.common.util import path_expand
 
 
 class TestName:
@@ -52,16 +51,57 @@ class TestName:
 
     def test_02_version(self):
         HEADING()
-        r = self.p.version()
-        pprint(r)
+        version = self.p.version()
+        pprint(version)
 
-        assert "18.09.2" == r["docker"]
-        assert 6247962 <= int(r["build"])
+        assert "18.09.2" == version["docker"]["version"]
+        assert 6247962 <= int(version["docker"]["build"])
+        assert "18.09.2" == version.docker.version
+        assert 6247962 <= int(version.docker.build)
 
+
+    def test_03_terminal(self):
+        HEADING()
+        t1 = Shell.terminal()
+        t2 = Shell.terminal(command="pwd")
+
+
+
+class d:
     def test_03_images(self):
         HEADING
-        r = self.p.images()
-        pprint(r)
+        images = self.p.images()
+        pprint(images)
+        """
+        order = self.p.output['image']['order']  # not pretty
+        header = self.p.output['image']['header']  # not pretty
+
+        print(Printer.flatwrite(images,
+                                sort_keys=("Os"),
+                                order=order,
+                                header=header,
+                                output="table"))
+        """
+
+    def test_04_containers(self):
+        HEADING()
+        client = docker.from_env()
+
+        containers = client.containers.list()
+        pprint(containers)
+        """
+        order = self.p.output['vm']['order']  # not pretty
+        header = self.p.output['vm']['header']  # not pretty
+
+        print(Printer.flatwrite(containers,
+                                sort_keys=("Os"),
+                                order=order,
+                                header=header,
+                                output="table"))
+        """
+
+
+class ooo:
 
     def test_03_images(self):
         HEADING()

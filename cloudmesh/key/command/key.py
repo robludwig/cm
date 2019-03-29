@@ -8,9 +8,9 @@ from cloudmesh.key.api.manager import Manager
 from cloudmesh.management.configuration.SSHkey import SSHkey
 from cloudmesh.management.configuration.config import Config
 from cloudmesh.shell.command import PluginCommand
-from cloudmesh.shell.command import command
+from cloudmesh.shell.command import command, map_parameters
 from cloudmesh.shell.variables import Variables
-from cloudmesh.compute.libcloud.Provider import  Provider
+from cloudmesh.compute.libcloud.Provider import Provider
 
 
 class KeyCommand(PluginCommand):
@@ -49,7 +49,7 @@ class KeyCommand(PluginCommand):
 
 
            Arguments:
-             VMS            Para,eterized list of virtual machines
+             VMS            Parameterized list of virtual machines
              CLOUDS         The clouds
              NAME           The name of the key.
              SOURCE         db, ssh, all
@@ -93,7 +93,7 @@ class KeyCommand(PluginCommand):
                 key add --ssh
                     adds the default key in ~/.ssh/id_rsa.pub
                 key add NAME  --source=FILENAME
-                    adds the key specifid by the filename with the given name
+                    adds the key specified by the filename with the given name
                 key add NAME --git --username=username
                     adds a named github key from a user with the given github
                     username.
@@ -101,9 +101,9 @@ class KeyCommand(PluginCommand):
                 Once the keys are uploaded to github, they can be listed
 
                 key list [NAME] [--format=FORMAT]
-                    list the keys loaded to cloudmesh in the giiven format:
-                    json, yaml, table. table is default. The NAME cabn be
-                    specified and if ommitted the name cloudmesh.profile.user
+                    list the keys loaded to cloudmesh in the given format:
+                    json, yaml, table. table is default. The NAME can be
+                    specified and if omitted the name cloudmesh.profile.user
                     is assumed.
 
                 key get NAME
@@ -162,10 +162,11 @@ class KeyCommand(PluginCommand):
                 to the grouplist of the key
         """
 
-        arguments.cloud = arguments['--cloud']
-        arguments.format = arguments['--format']
-        arguments.source = arguments['--source']
-        arguments.dir = arguments['--dir']
+        map_parameters(arguments,
+                       'cloud',
+                       'format',
+                       'source',
+                       'dir')
 
         pprint(arguments)
 
@@ -209,7 +210,7 @@ class KeyCommand(PluginCommand):
                 variables = Variables()
                 cloudname = variables['cloud']
                 clouds = [cloudname]
-            cloudkey =[]
+            cloudkey = []
             for cloud in clouds:
                 print(cloud)
                 provider = Provider(clouds)
@@ -221,7 +222,6 @@ class KeyCommand(PluginCommand):
                 order=["name", "type", "fingerprint", "comment"],
                 header=["Name", "Type", "Fingerprint", "Comment"])
             )
-
 
             return ""
 

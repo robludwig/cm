@@ -1,9 +1,9 @@
 from cloudmesh.compute.libcloud.Provider import Provider as LibCloudProvider
-from cloudmesh.compute.virtualbox.Provider import Provider as VirtualboxCloudProvider
+from cloudmesh.compute.virtualbox.Provider import \
+    Provider as VirtualboxCloudProvider
 from cloudmesh.management.configuration.config import Config
-from cloudmesh.common.console import Console
 from cloudmesh.mongo.DataBaseDecorator import DatabaseUpdate
-from cloudmesh.terminal.Terminal import VERBOSE
+
 
 class Provider(object):
 
@@ -15,10 +15,11 @@ class Provider(object):
 
         # Console.msg("FOUND Kind", self.kind)
 
-        if self.kind in ["openstack"]:
+        if self.kind in ["openstack", "aws", "google"]:
             self.p = LibCloudProvider(name=name, configuration=configuration)
-        if self.kind in ["vagrant","virtualbox"]:
-            self.p = VirtualboxCloudProvider(name=name, configuration=configuration)
+        elif self.kind in ["vagrant", "virtualbox"]:
+            self.p = VirtualboxCloudProvider(name=name,
+                                             configuration=configuration)
 
     def cloudname(self):
         return self.name
@@ -31,7 +32,15 @@ class Provider(object):
     def list(self):
         return self.p.list()
 
-    def add_colection(self, d, *args):
+    @DatabaseUpdate()
+    def images(self):
+        return self.p.images()
+
+    @DatabaseUpdate()
+    def flavor(self):
+        return self.p.flavors()
+
+    def add_collection(self, d, *args):
         if d is None:
             return None
         label = '-'.join(args)

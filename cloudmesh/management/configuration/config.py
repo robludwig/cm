@@ -2,7 +2,10 @@ from os import mkdir
 from os.path import isfile, expanduser, join, dirname, realpath, exists
 from pathlib import Path
 from shutil import copyfile
-
+from cloudmesh.terminal.Terminal import VERBOSE
+from cloudmesh.common.util import path_expand
+import munch
+import re
 import oyaml as yaml
 
 from cloudmesh.common.dotdict import dotdict
@@ -28,7 +31,8 @@ class Active(object):
 class Config(object):
     __shared_state = {}
 
-    def __init__(self, config_path='~/.cloudmesh/cloudmesh4.yaml'):
+    def __init__(self, config_path='~/.cloudmesh/cloudmesh4.yaml',
+                 encrypted=False):
         """
         Initialize the Config class.
 
@@ -39,7 +43,9 @@ class Config(object):
         self.__dict__ = self.__shared_state
         if "data" not in self.__dict__:
 
-            self.config_path = Path(expanduser(config_path)).resolve()
+            VERBOSE.print("Load config", verbose=9)
+
+            self.config_path = Path(path_expand(config_path)).resolve()
             self.config_folder = dirname(self.config_path)
 
             if not exists(self.config_folder):
@@ -51,8 +57,16 @@ class Config(object):
 
                 copyfile(source.resolve(), self.config_path)
 
+            #with open(self.config_path, "r") as stream:
+            #    # self.data = yaml.load(stream, Loader=yaml.FullLoader)
+            #    self.data = yaml.load(stream, Loader=yaml.SafeLoader)
+
             with open(self.config_path, "r") as stream:
-                self.data = yaml.load(stream)
+                content = stream.read()
+                content = path_expand(content)
+                content = self.spec_replace(content)
+                self.data = yaml.load(content, Loader=yaml.SafeLoader)
+
 
             # self.data is loaded as nested OrderedDict, can not use set or get methods directly
             if self.data is None:
@@ -75,6 +89,23 @@ class Config(object):
                 self.cloud = default["cloud"]
             else:
                 self.cloud = None
+
+    def spec_replace(self, spec):
+
+        variables = re.findall("\{\w.+\}", spec)
+
+        for i in range(0, len(variables)):
+            data = yaml.load(spec, Loader=yaml.SafeLoader)
+
+            m = munch.DefaultMunch.fromDict(data)
+
+            for variable in variables:
+                text = variable
+                variable = variable[1:-1]
+                value = eval(f"m.{variable}")
+                if "{" not in value:
+                    spec = spec.replace(text, value)
+        return spec
 
     def credentials(self, kind, name):
         """
@@ -128,7 +159,7 @@ class Config(object):
 
         yaml_file = self.data.copy()
         with open(self.config_path, "w") as stream:
-            print("Writing updata to cloudmesh.yaml")
+            print("Writing update to cloudmesh.yaml")
             yaml.safe_dump(yaml_file, stream, default_flow_style=False)
 
     def default(self):

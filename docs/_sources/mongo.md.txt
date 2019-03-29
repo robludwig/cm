@@ -65,3 +65,159 @@ you will have to set the PATH variable manually after install
 $ cms admin mongo install
 ```
 
+## Database Decorator
+
+Cloudmesh comes with a very convenient mechanism to integrate data into MongoDB.
+All you have to do is to create a list of dictionaries with a function, that
+returns this dictionary and use a decorator in the function to update the
+information into the database. 
+
+The data base decorator automatically replaces an entry in the database with
+the dictionary returned by a function.
+
+It is added to a MongoDB collection. The location is determined from the
+values in the dictionary.
+
+The name of the collection is determined from cloud and kind:
+
+   `cloud-kind`
+
+In addition each entry in the collection has a `name` that must be unique in
+that collection.
+
+In most examples it is best to separate the updload from the actual return
+class. This way we essentially provide two functions one that provide the
+dict and another that is responsible for the upload to the database.
+
+Example:
+
+`cloudmesh.example.foo` contains:
+
+    class Provider(object)
+
+        def entries(self):
+            return {
+               "cloud": "foo",
+               "kind"": "entries",
+               "name": "test01"
+               "test": "hello"}
+
+
+`cloudmesh.example.bar` contains:
+
+    class Provider(object)
+
+        def entries(self):
+            return {
+               "cloud": "bar",
+               "kind"": "entries",
+               "name": "test01"
+               "test": "hello"}
+
+`cloudmesh.example.provider.foo` contains:
+
+    from cloudmesh.example.foo import Provider as FooProvider
+    from cloudmesh.example.foo import Provider as BarProvider
+
+    class Provider(object)
+
+        def __init__(self, provider):
+           if provider == "foo":
+              provider = FooProvider()
+           elif provider == "bar":
+              provider = BarProvider()
+
+        @DatabaseUpdate
+        def entries(self):
+            provider.entries()
+
+
+Separating the database and the dictionary creation allows the developer to
+implement different providers but only use one class with the same methods
+to interact for all providers with the database.
+
+In the combined provider a find function to for example search for entries
+by name across collections could be implemented.
+
+## Database Access
+
+In addition to the decorator, we have a very simple database class for
+interacting across a number of collections. THis especially is useful for
+finding informtion.
+
+
+    self.database = CmDatabase()
+
+
+Find the entry with the uniqe name CC-Centos
+ 
+    r = self.database.find_name("CC-CentOS7")
+    pprint(r)
+
+Find the entries with either CC-CentOS7 or CC-CentOS7-1811
+ 
+    r = self.database.find_names("CC-CentOS7,CC-CentOS7-1811")
+    pprint(r)
+
+Find out how many entries exist with the name CC-CentOS7:
+        
+    r = self.database.name_count("CC-CentOS7")
+    pprint(r)
+
+## Creating Uniqe Names
+
+Uniqe names with the format `{experiment}-{group}-{user}-{counter}` can be
+created with
+
+    from cloumesh.management.configuration.name import Name
+    
+    name = Name(
+        experiment="exp",
+        group="grp",
+        user="gregor",
+        kind="vm",
+        counter=1)
+    
+To increae the counter use
+
+    name.incr()
+
+To get the name at the current counter value say 
+
+    str(name) 
+    
+or
+
+    name.id()
+
+
+The format can be chaned with `schema=` at the initailization. Thus 
+
+    name = Name(
+            user='gregor,
+            schema='{user}-{counter}`,
+            counter=1)
+
+would create names of the form gergor1, gergor2 and so on.
+
+
+## Cloudmesh Attributes
+
+Cloudmesh elements in the database will have a special cm dictionary with a
+number of attributes defined in it. The following example showcases such an
+attribute dict. The attributs can be used to uniquely define an object in the
+database by cobining the cloud, kind, and name. In addition it contains the date
+for the object being created first and its update time.
+
+    "cm" : {
+        "name" : "m1.medium",
+        "created" : "2019-03-25 07:45:46.905623",
+        "updated" : "2019-03-25 07:45:46.905623",
+        "cloud" : "chameleon",
+        "kind" : "flavor",
+        "driver" : "openstack",
+        "collection" : "chameleon-flavor"
+    },
+    
+Using this information the object can easily be found in the database by name,
+type or cloud or a combination thereof.
