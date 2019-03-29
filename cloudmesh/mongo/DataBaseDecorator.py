@@ -80,11 +80,11 @@ class DatabaseAddOld:
 
 class DatabaseUpdate:
     """
-    Prints the dict of the result but does not add it to the DB
-
+    Wraps the method so that the return value is upserted into the database
+    Draws the collection name from the dict's cm attributes
     Example:
 
-        @DatabaseUpdate("test-collection")
+        @DatabaseUpdate()
         def foo(x):
             return {"test": "hello"}
     """
